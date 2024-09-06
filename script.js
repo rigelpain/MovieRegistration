@@ -120,11 +120,8 @@ function selectMovie(movieId, movieTitle, thumbnailUrl) {
                     '概要': {
                         rich_text: [{ text: { content: movie.overview || '情報なし' } }]
                     },
-                    '製作年': {
-                        number: parseInt(movie.release_date?.split('-')[0]) || 0
-                    },
-                    '全国での上映期間': {
-                        rich_text: [{ text: { content: '情報なし' } }]
+                    '全国上映開始日': {
+                        date: { start: movie.release_date || null } // 全国上映開始日を日付形式で設定
                     },
                     '上映時間': {
                         number: movie.runtime || 0
