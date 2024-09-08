@@ -74,3 +74,14 @@ a {
 a:hover {
   text-decoration: underline;
 }
+
+
+.tag-registered {
+  display: inline-block;
+  background-color: #007bff; /* 青色の背景 */
+  color: #ffffff;           /* 白い文字 */
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 12px;
+  margin-left: 10px;
+}

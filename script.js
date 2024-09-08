@@ -2,9 +2,52 @@ const apiKey = '63b0c3c1cbcc4830e39fee2250416bf8';
 const notionApiKey = 'secret_xtpMAuRfYEtXVMrBaKQtBVrUdvHp8VdCGbL8WvN40pI';
 const notionDatabaseId = 'dbfd1334773d4dffa17d69bc97871b2b';
 
-document.getElementById('search').addEventListener('input', function () {
+// Notionに登録されている映画のIDとその上映期間を取得する関数
+async function fetchRegisteredMoviesData() {
+    try {
+        const response = await fetch(`https://api.notion.com/v1/databases/${notionDatabaseId}/query`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${notionApiKey}`,
+                'Content-Type': 'application/json',
+                'Notion-Version': '2022-06-28'
+            },
+            body: JSON.stringify({
+                page_size: 100, // 必要に応じてページサイズを調整
+                filter: {
+                    property: 'ID',
+                    number: {
+                        is_not_empty: true
+                    }
+                }
+            })
+        });
+        if (!response.ok) throw new Error(`Notion API error: ${response.status} ${response.statusText}`);
+        const data = await response.json();
+        
+        // 映画のIDとアイリス上映開始日、終了日をマッピングする
+        const registeredMovies = data.results.map(page => ({
+            id: page.properties['ID'].number,
+            startDate: page.properties['アイリス上映開始日'].date ? page.properties['アイリス上映開始日'].date.start : '未設定',
+            endDate: page.properties['アイリス上映終了日'].date ? page.properties['アイリス上映終了日'].date.start : '未設定'
+        }));
+        
+        // デバッグ用に登録されている映画のデータをコンソールに表示
+        console.log('Registered Movies Data:', registeredMovies);
+        
+        return registeredMovies;
+    } catch (error) {
+        console.error('Error fetching registered movie data:', error);
+        return [];
+    }
+}
+
+document.getElementById('search').addEventListener('input', async function () {
     const query = this.value;
     if (query.length > 2) {
+        // 既存の登録済み映画のデータを取得
+        const registeredMovies = await fetchRegisteredMoviesData();
+
         fetch(`https://api.themoviedb.org/3/search/movie?api_key=${apiKey}&query=${query}&language=ja-JP&region=JP`)
             .then(response => response.json())
             .then(data => {
@@ -28,11 +71,17 @@ document.getElementById('search').addEventListener('input', function () {
                         // サムネイル画像のURLを保持
                         const thumbnailUrl = `https://image.tmdb.org/t/p/w92${movie.poster_path}`;
 
+                        // 登録済みのタグと上映期間の表示
+                        const registeredMovie = registeredMovies.find(registered => registered.id === movie.id);
+                        const registeredTag = registeredMovie 
+                            ? `<span class="tag-registered">登録済み - アイリス上映開始: ${registeredMovie.startDate}, 終了: ${registeredMovie.endDate}</span>`
+                            : '';
+
                         return `
                             <div class="suggestion-item" onclick="selectMovie('${movie.id}', '${movie.title}', '${thumbnailUrl}')">
                                 <img src="${thumbnailUrl}" alt="${movie.title}" class="thumbnail">
                                 <div>
-                                    <span><strong>タイトル:</strong> ${displayTitle}</span><br>
+                                    <span><strong>タイトル:</strong> ${displayTitle}</span> ${registeredTag}<br>
                                     <span><strong>公開日:</strong> ${movie.release_date}</span><br>
                                     <span><strong>監督:</strong> ${director ? director.name : '監督未登録'}</span><br>
                                     <span><strong>主演:</strong> ${mainCast || '主演未登録'}</span><br>
@@ -50,6 +99,11 @@ document.getElementById('search').addEventListener('input', function () {
         document.getElementById('suggestions').innerHTML = '';
     }
 });
+
+
+
+
+
 
 function selectMovie(movieId, movieTitle, thumbnailUrl) {
     // 放映期間の取得
