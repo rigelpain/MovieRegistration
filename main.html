@@ -7,20 +7,30 @@
 </head>
 <body>
     <div class="container">
+        
         <div class="left-panel">
             <div class="top-bar">
                 <button id="reload-button">リロード</button>
+                <button id="clear-all-button">すべてクリア</button>
+                <button id="register-all-button">一括登録</button>
             </div>
-            <div class="date-inputs">
-                <label for="start-date">アイリス上映開始日:</label>
-                <input type="date" id="start-date">
-                <label for="end-date">アイリス上映終了日:</label>
-                <input type="date" id="end-date">
+            <div class="date-inputs-wrapper">
+                <div class="date-inputs">
+                    <label for="start-date">アイリス上映開始日:</label>
+                    <input type="date" id="start-date">
+                </div>
+                <div class="date-inputs">
+                    <label for="end-date">アイリス上映終了日:</label>
+                    <input type="date" id="end-date">
+                </div>
+            </div>
+            <div class="week-buttons">
+                <button id="previous-week-button">＜ 前の週 ＜</button>
+                <button id="next-week-button">＞ 次の週 ＞</button>
             </div>
             <div id="search-containers">
                 <!-- ここに複数の検索窓が追加されます -->
             </div>
-            <button id="clear-all-button">すべてクリア</button>
         </div>
         <div class="right-panel">
             <div id="suggestions"></div>

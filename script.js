@@ -10,6 +10,9 @@ function createSearchFields() {
         searchContainer.classList.add('search-container');
         searchContainer.id = `container-${i}`; // 各コンテナにユニークなIDを設定
 
+        const searchInputWrapper = document.createElement('div');
+        searchInputWrapper.classList.add('search-input-wrapper');
+
         const searchInput = document.createElement('input');
         searchInput.type = 'text';
         searchInput.placeholder = '映画タイトルを検索';
@@ -29,13 +32,35 @@ function createSearchFields() {
             performSearch(searchInput.value, searchContainer);
         });
 
-        searchContainer.appendChild(searchInput);
-        searchContainer.appendChild(clearButton);
+        searchInputWrapper.appendChild(searchInput);
+        searchInputWrapper.appendChild(clearButton);
+        searchContainer.appendChild(searchInputWrapper);
         searchContainers.appendChild(searchContainer);
     }
 }
 
 createSearchFields();
+
+// 日付を調整する関数
+function adjustDate(inputId, days) {
+    const dateInput = document.getElementById(inputId);
+    if (dateInput.value) {
+        const currentDate = new Date(dateInput.value);
+        currentDate.setDate(currentDate.getDate() + days);
+        dateInput.value = currentDate.toISOString().split('T')[0];
+    }
+}
+
+// 「次の週」「前の週」ボタンのクリックイベントリスナー
+document.getElementById('next-week-button').addEventListener('click', () => {
+    adjustDate('start-date', 7);
+    adjustDate('end-date', 7);
+});
+
+document.getElementById('previous-week-button').addEventListener('click', () => {
+    adjustDate('start-date', -7);
+    adjustDate('end-date', -7);
+});
 
 // Notionに登録されている映画のIDとその上映期間を取得する関数
 async function fetchRegisteredMoviesData() {
@@ -136,6 +161,28 @@ async function updateMovieDates(pageId, newStartDate, newEndDate, currentStartDa
     }
 }
 
+async function updateMovieDatesWithRetry(pageId, newStartDate, newEndDate, currentStartDate, currentEndDate, retryCount = 3) {
+    while (retryCount > 0) {
+        try {
+            const updated = await updateMovieDates(pageId, newStartDate, newEndDate, currentStartDate, currentEndDate);
+            if (updated) {
+                return true;
+            }
+        } catch (error) {
+            if (error.message.includes('409')) {
+                console.log('競合エラーが発生しました。リトライします...');
+                retryCount--;
+                await new Promise(resolve => setTimeout(resolve, 1000)); // 1秒待機
+                continue;
+            }
+            throw error; // その他のエラーの場合は再スロー
+        }
+    }
+    alert('更新に失敗しました。競合が解決できませんでした。');
+    return false;
+}
+
+
 // リロードボタンのクリックイベントリスナー
 document.getElementById('reload-button').addEventListener('click', reloadSearchResults);
 
@@ -146,6 +193,25 @@ document.getElementById('clear-all-button').addEventListener('click', () => {
         search.value = '';
         document.getElementById('suggestions').innerHTML = '';
         search.parentElement.querySelector('.movie-details')?.remove();
+    });
+});
+
+// 一括登録ボタンの処理
+document.getElementById('register-all-button').addEventListener('click', () => {
+    const movieDetailsElements = document.querySelectorAll('.movie-details');
+    movieDetailsElements.forEach(details => {
+        const movieId = details.getAttribute('data-movie-id');
+        const movieTitle = details.getAttribute('data-movie-title');
+        const thumbnailUrl = details.getAttribute('data-thumbnail-url');
+        const notionPageId = details.getAttribute('data-notion-page-id');
+        const startDate = document.getElementById('start-date').value;
+        const endDate = document.getElementById('end-date').value;
+
+        if (startDate && endDate && movieId) { // movieIdのチェックを追加
+            registerSelectedMovie(movieId, movieTitle, thumbnailUrl, notionPageId, startDate, endDate);
+        } else {
+            alert('映画ID、アイリス上映開始日、または終了日が設定されていません。');
+        }
     });
 });
 
@@ -223,6 +289,7 @@ function confirmMovie(movieId, movieTitle, thumbnailUrl, notionPageId, container
         return;
     }
 
+    
     // 既に表示されている映画情報を削除
     const existingDetails = container.querySelector('.movie-details');
     if (existingDetails) {
@@ -230,11 +297,23 @@ function confirmMovie(movieId, movieTitle, thumbnailUrl, notionPageId, container
     }
 
     // 映画情報を表示
+    
+    // 映画情報を表示
     const movieDetails = document.createElement('div');
     movieDetails.classList.add('movie-details');
+    movieDetails.setAttribute('data-movie-id', movieId); // 映画IDを設定
+    movieDetails.setAttribute('data-movie-title', movieTitle);
+    movieDetails.setAttribute('data-thumbnail-url', thumbnailUrl);
+    movieDetails.setAttribute('data-notion-page-id', notionPageId);
+    
+    // Notionに既に登録されているかを確認してタグを表示
+    const registeredTag = notionPageId 
+        ? `<span class="tag-registered">登録済み</span>`
+        : '';
+
     movieDetails.innerHTML = `
         <strong>選択中の映画:</strong><br>
-        <strong>タイトル:</strong> ${movieTitle}<br>
+        <strong>タイトル:</strong> ${movieTitle} ${registeredTag}<br>
         <img src="${thumbnailUrl}" alt="${movieTitle}" style="max-width: 100px;"><br>
         <button onclick="registerSelectedMovie('${movieId}', '${movieTitle}', '${thumbnailUrl}', '${notionPageId}')">登録</button>
     `;
