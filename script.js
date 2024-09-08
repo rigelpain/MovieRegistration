@@ -1,7 +1,6 @@
 const apiKey = '63b0c3c1cbcc4830e39fee2250416bf8';
 const notionApiKey = 'secret_xtpMAuRfYEtXVMrBaKQtBVrUdvHp8VdCGbL8WvN40pI';
 const notionDatabaseId = 'dbfd1334773d4dffa17d69bc97871b2b';
-let selectedMovie = null;  // 確定された映画情報を保存
 
 // 検索窓を10個作成する
 function createSearchFields() {
@@ -9,6 +8,7 @@ function createSearchFields() {
     for (let i = 0; i < 10; i++) {
         const searchContainer = document.createElement('div');
         searchContainer.classList.add('search-container');
+        searchContainer.id = `container-${i}`; // 各コンテナにユニークなIDを設定
 
         const searchInput = document.createElement('input');
         searchInput.type = 'text';
@@ -22,10 +22,11 @@ function createSearchFields() {
         clearButton.addEventListener('click', () => {
             searchInput.value = '';
             document.getElementById('suggestions').innerHTML = '';
+            searchContainer.querySelector('.movie-details')?.remove();
         });
 
         searchInput.addEventListener('input', () => {
-            performSearch(searchInput.value, searchInput.id);
+            performSearch(searchInput.value, searchContainer);
         });
 
         searchContainer.appendChild(searchInput);
@@ -58,7 +59,7 @@ async function fetchRegisteredMoviesData() {
         });
         if (!response.ok) throw new Error(`Notion API error: ${response.status} ${response.statusText}`);
         const data = await response.json();
-        
+
         // 映画のIDとアイリス上映開始日、終了日をマッピングする
         const registeredMovies = data.results.map(page => ({
             id: page.properties['ID'].number,
@@ -66,10 +67,10 @@ async function fetchRegisteredMoviesData() {
             endDate: page.properties['アイリス上映終了日'].date ? page.properties['アイリス上映終了日'].date.start : '未設定',
             notionPageId: page.id // NotionページのIDを取得しておく
         }));
-        
+
         // デバッグ用に登録されている映画のデータをコンソールに表示
         console.log('Registered Movies Data:', registeredMovies);
-        
+
         return registeredMovies;
     } catch (error) {
         console.error('Error fetching registered movie data:', error);
@@ -78,54 +79,65 @@ async function fetchRegisteredMoviesData() {
 }
 
 // Notionの映画の開始日と終了日を更新する関数
-async function updateMovieDates(pageId, newStartDate, newEndDate) {
+async function updateMovieDates(pageId, newStartDate, newEndDate, currentStartDate, currentEndDate) {
     try {
         const propertiesToUpdate = {};
         let updatedFields = [];
 
-        if (newStartDate) {
-            propertiesToUpdate['アイリス上映開始日'] = { date: { start: newStartDate } };
-            updatedFields.push('上映開始日');
+        // 新しい開始日が既存の終了日の翌日であれば、終了日を更新
+        if (newStartDate && currentEndDate) {
+            const newStart = new Date(newStartDate);
+            const currentEnd = new Date(currentEndDate);
+            if (newStart.getTime() === currentEnd.getTime() + 24 * 60 * 60 * 1000) { // 翌日チェック
+                propertiesToUpdate['アイリス上映終了日'] = { date: { start: newEndDate } };
+                updatedFields.push('上映終了日');
+            }
         }
-        if (newEndDate) {
-            propertiesToUpdate['アイリス上映終了日'] = { date: { start: newEndDate } };
-            updatedFields.push('上映終了日');
-        }
-        
-        const response = await fetch(`https://api.notion.com/v1/pages/${pageId}`, {
-            method: 'PATCH',
-            headers: {
-                'Authorization': `Bearer ${notionApiKey}`,
-                'Content-Type': 'application/json',
-                'Notion-Version': '2022-06-28'
-            },
-            body: JSON.stringify({
-                properties: propertiesToUpdate
-            })
-        });
-        if (!response.ok) throw new Error(`Notion API error: ${response.status} ${response.statusText}`);
-        console.log('Notionの上映日を更新しました:', propertiesToUpdate);
 
-        // 更新されたフィールドに基づいてメッセージを表示
+        // 新しい終了日が既存の開始日の前日であれば、開始日を更新
+        if (newEndDate && currentStartDate) {
+            const newEnd = new Date(newEndDate);
+            const currentStart = new Date(currentStartDate);
+            if (newEnd.getTime() === currentStart.getTime() - 24 * 60 * 60 * 1000) { // 前日チェック
+                propertiesToUpdate['アイリス上映開始日'] = { date: { start: newStartDate } };
+                updatedFields.push('上映開始日');
+            }
+        }
+
+        // 日付更新がある場合のみAPIリクエストを送信
         if (updatedFields.length > 0) {
-            alert(`${updatedFields.join('と')}が更新されました！`);
-        } else {
-            alert('上映日が更新されましたが、どのフィールドが更新されたかは不明です。');
-        }
+            const response = await fetch(`https://api.notion.com/v1/pages/${pageId}`, {
+                method: 'PATCH',
+                headers: {
+                    'Authorization': `Bearer ${notionApiKey}`,
+                    'Content-Type': 'application/json',
+                    'Notion-Version': '2022-06-28'
+                },
+                body: JSON.stringify({
+                    properties: propertiesToUpdate
+                })
+            });
+            if (!response.ok) throw new Error(`Notion API error: ${response.status} ${response.statusText}`);
+            console.log('Notionの上映日を更新しました:', propertiesToUpdate);
 
-        // 更新完了後に情報を再取得
-        performSearch(document.getElementById('search').value);
+            // 更新されたフィールドに基づいてメッセージを表示
+            alert(`${updatedFields.join('と')}が更新されました！`);
+            
+            // 更新完了後にリロードを実行
+            reloadSearchResults();
+            return true; // 更新が行われたことを示す
+        } else {
+            return false; // 更新が行われなかったことを示す
+        }
     } catch (error) {
         console.error('Notion上映日更新エラー:', error);
         alert('上映日更新に失敗しました。');
+        return false;
     }
 }
 
 // リロードボタンのクリックイベントリスナー
-document.getElementById('reload-button').addEventListener('click', () => {
-    const searches = document.querySelectorAll('.search-input');
-    searches.forEach(search => performSearch(search.value, search.id));
-});
+document.getElementById('reload-button').addEventListener('click', reloadSearchResults);
 
 // 全てクリアボタンのクリックイベントリスナー
 document.getElementById('clear-all-button').addEventListener('click', () => {
@@ -133,10 +145,17 @@ document.getElementById('clear-all-button').addEventListener('click', () => {
     searches.forEach(search => {
         search.value = '';
         document.getElementById('suggestions').innerHTML = '';
+        search.parentElement.querySelector('.movie-details')?.remove();
     });
 });
 
-function performSearch(query, inputId) {
+// 検索結果をリロードする関数
+function reloadSearchResults() {
+    const searches = document.querySelectorAll('.search-input');
+    searches.forEach(search => performSearch(search.value, search.parentElement));
+}
+
+function performSearch(query, container) {
     if (query.length > 2) {
         // 既存の登録済み映画のデータを取得
         fetchRegisteredMoviesData().then(registeredMovies => {
@@ -171,7 +190,7 @@ function performSearch(query, inputId) {
                                 : '';
 
                             return `
-                                <div class="suggestion-item" onclick="confirmMovie('${movie.id}', '${movie.title}', '${thumbnailUrl}', '${registeredMovie ? registeredMovie.notionPageId : ''}')">
+                                <div class="suggestion-item" onclick="confirmMovie('${movie.id}', '${movie.title}', '${thumbnailUrl}', '${registeredMovie ? registeredMovie.notionPageId : ''}', '${container.id}')">
                                     <img src="${thumbnailUrl}" alt="${movie.title}" class="thumbnail">
                                     <div>
                                         <span><strong>タイトル:</strong> ${displayTitle}</span> ${registeredTag}<br>
@@ -194,63 +213,68 @@ function performSearch(query, inputId) {
     }
 }
 
-function confirmMovie(movieId, movieTitle, thumbnailUrl, notionPageId) {
-    // 確定した映画情報を保存
-    selectedMovie = {
-        movieId,
-        movieTitle,
-        thumbnailUrl,
-        notionPageId
-    };
-    alert(`${movieTitle} が選択されました。登録するには「登録」ボタンを押してください。`);
-}
+function confirmMovie(movieId, movieTitle, thumbnailUrl, notionPageId, containerId) {
+    // コンテナ要素を取得
+    const container = document.getElementById(containerId);
 
-// 「登録」ボタンを追加
-const registerButton = document.createElement('button');
-registerButton.textContent = '登録';
-registerButton.id = 'register-button';
-registerButton.style.display = 'none'; // 最初は非表示
-registerButton.addEventListener('click', () => {
-    if (!selectedMovie) {
-        alert('登録する映画を選択してください。');
+    // コンテナが存在するか確認
+    if (!container) {
+        console.error(`コンテナが見つかりません: ID = ${containerId}`);
         return;
     }
 
+    // 既に表示されている映画情報を削除
+    const existingDetails = container.querySelector('.movie-details');
+    if (existingDetails) {
+        existingDetails.remove();
+    }
+
+    // 映画情報を表示
+    const movieDetails = document.createElement('div');
+    movieDetails.classList.add('movie-details');
+    movieDetails.innerHTML = `
+        <strong>選択中の映画:</strong><br>
+        <strong>タイトル:</strong> ${movieTitle}<br>
+        <img src="${thumbnailUrl}" alt="${movieTitle}" style="max-width: 100px;"><br>
+        <button onclick="registerSelectedMovie('${movieId}', '${movieTitle}', '${thumbnailUrl}', '${notionPageId}')">登録</button>
+    `;
+
+    container.appendChild(movieDetails);
+}
+
+function registerSelectedMovie(movieId, movieTitle, thumbnailUrl, notionPageId) {
     // 日付が未入力の場合、エラーメッセージを表示して登録を中止
-    const startDate = document.getElementById('start-date').value;
-    const endDate = document.getElementById('end-date').value;
+    const startDate = document.getElementById('start-date')?.value || null;
+    const endDate = document.getElementById('end-date')?.value || null;
 
     if (!startDate || !endDate) {
         alert('アイリス上映開始日と終了日を入力してください。');
         return;
     }
 
-    // Notionに映画を登録する
-    registerNewMovie(selectedMovie.movieId, selectedMovie.movieTitle, selectedMovie.thumbnailUrl, startDate, endDate);
-});
+    // Notionに既に登録されているかを確認し、上映日を更新するか新規登録するかを判断
+    fetchRegisteredMoviesData().then(registeredMovies => {
+        const registeredMovie = registeredMovies.find(registered => registered.id === parseInt(movieId));
 
-// ボタンをページに追加
-document.body.appendChild(registerButton);
-
-// 作品を選択したときにボタンを表示
-function displayRegisterButton() {
-    const registerButton = document.getElementById('register-button');
-    if (selectedMovie) {
-        registerButton.style.display = 'block';
-    } else {
-        registerButton.style.display = 'none';
-    }
-}
-
-function selectMovie(movieId, movieTitle, thumbnailUrl, notionPageId) {
-    // 確定した映画情報をセット
-    selectedMovie = {
-        movieId,
-        movieTitle,
-        thumbnailUrl,
-        notionPageId
-    };
-    displayRegisterButton();
+        if (registeredMovie) {
+            // 既存の映画が見つかった場合、上映日を更新
+            updateMovieDates(
+                registeredMovie.notionPageId,
+                startDate,
+                endDate,
+                registeredMovie.startDate,
+                registeredMovie.endDate
+            ).then(updated => {
+                // 上映日の更新が行われなかった場合、新規に登録
+                if (!updated) {
+                    registerNewMovie(movieId, movieTitle, thumbnailUrl, startDate, endDate);
+                }
+            });
+        } else {
+            // 映画が見つからなかった場合、新規に登録
+            registerNewMovie(movieId, movieTitle, thumbnailUrl, startDate, endDate);
+        }
+    });
 }
 
 function registerNewMovie(movieId, movieTitle, thumbnailUrl, startDate, endDate) {
@@ -374,8 +398,8 @@ function registerNewMovie(movieId, movieTitle, thumbnailUrl, startDate, endDate)
             console.log('Notionへの登録に成功しました');
             alert(`${movieTitle} を登録しました！`);
 
-            // 登録完了後に情報を再取得
-            performSearch(document.getElementById('search').value);
+            // 登録完了後にリロードを実行
+            reloadSearchResults();
         })
         .catch(error => {
             console.error('エラーが発生しました:', error);
