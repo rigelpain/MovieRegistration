@@ -18,7 +18,7 @@ document.getElementById('search').addEventListener('input', function () {
                         const director = movie.credits.crew.find(person => person.job === '監督' || person.job === 'Director');
                         const mainCast = movie.credits.cast.slice(0, 3).map(actor => actor.name).join(', ');
                         const trailer = movie.videos.results.find(video => video.type === 'Trailer' && video.site === 'YouTube');
-                        const trailerUrl = trailer ? `https://www.youtube.com/watch?v=${trailer.key}` : '情報なし';
+                        const trailerUrl = trailer ? `https://www.youtube.com/watch?v=${trailer.key}` : '予告未登録';
 
                         // タイトルとオリジナルタイトルの表示 (和名や和訳を括弧書きで表示)
                         const displayTitle = movie.title !== movie.original_title
@@ -34,11 +34,11 @@ document.getElementById('search').addEventListener('input', function () {
                                 <div>
                                     <span><strong>タイトル:</strong> ${displayTitle}</span><br>
                                     <span><strong>公開日:</strong> ${movie.release_date}</span><br>
-                                    <span><strong>監督:</strong> ${director ? director.name : '情報なし'}</span><br>
-                                    <span><strong>主演:</strong> ${mainCast || '情報なし'}</span><br>
-                                    <span><strong>概要:</strong> ${movie.overview || '情報なし'}</span><br>
-                                    <span><strong>予告編:</strong> <a href="${trailerUrl}" target="_blank">${trailerUrl !== '情報なし' ? 'YouTube' : '情報なし'}</a></span><br>
-                                    <span><strong>ユーザースコア:</strong> ${movie.vote_average || '情報なし'}</span>
+                                    <span><strong>監督:</strong> ${director ? director.name : '監督未登録'}</span><br>
+                                    <span><strong>主演:</strong> ${mainCast || '主演未登録'}</span><br>
+                                    <span><strong>概要:</strong> ${movie.overview || '概要未登録'}</span><br>
+                                    <span><strong>予告編:</strong> <a href="${trailerUrl}" target="_blank">${trailerUrl !== '予告未登録' ? 'YouTube' : '予告未登録'}</a></span><br>
+                                    <span><strong>ユーザースコア:</strong> ${movie.vote_average || 'ユーザースコア不明'}</span>
                                 </div>
                             </div>
                         `;
@@ -52,6 +52,16 @@ document.getElementById('search').addEventListener('input', function () {
 });
 
 function selectMovie(movieId, movieTitle, thumbnailUrl) {
+    // 放映期間の取得
+    const startDate = document.getElementById('start-date').value;
+    const endDate = document.getElementById('end-date').value;
+
+    // 日付が未入力の場合、エラーメッセージを表示して登録を中止
+    if (!startDate || !endDate) {
+        alert('アイリス上映開始日と終了日を入力してください。');
+        return; // NotionDBへの登録手続きを中止
+    }
+
     console.log(`開始: 映画ID ${movieId} の情報を取得します`);
 
     fetch(`https://api.themoviedb.org/3/movie/${movieId}?api_key=${apiKey}&language=ja-JP&append_to_response=credits,videos,images`)
@@ -68,7 +78,7 @@ function selectMovie(movieId, movieTitle, thumbnailUrl) {
             const director = movie.credits.crew.find(person => person.job === '監督' || person.job === 'Director');
             const mainCast = movie.credits.cast.slice(0, 3).map(actor => actor.name);
             const trailer = movie.videos.results.find(video => video.type === 'Trailer' && video.site === 'YouTube');
-            const trailerUrl = trailer ? `https://www.youtube.com/watch?v=${trailer.key}` : '情報なし';
+            const trailerUrl = trailer ? `https://www.youtube.com/watch?v=${trailer.key}` : '予告未登録';
 
             // メイン画像としてのサムネイルを設定
             const posterUrl = `https://image.tmdb.org/t/p/w500${movie.poster_path}`;
@@ -95,11 +105,7 @@ function selectMovie(movieId, movieTitle, thumbnailUrl) {
                 ...additionalImages // 追加の画像を設定
             ];
 
-            // 放映期間の取得
-            const startDate = document.getElementById('start-date').value;
-            const endDate = document.getElementById('end-date').value;
-
-            console.log('監督:', director ? director.name : '情報なし');
+            console.log('監督:', director ? director.name : '監督未登録');
             console.log('主演キャスト:', mainCast);
             console.log('予告編URL:', trailerUrl);
             console.log('ユーザースコア:', movie.vote_average);
@@ -118,7 +124,7 @@ function selectMovie(movieId, movieTitle, thumbnailUrl) {
                         title: [{ text: { content: movie.title } }]
                     },
                     '概要': {
-                        rich_text: [{ text: { content: movie.overview || '情報なし' } }]
+                        rich_text: [{ text: { content: movie.overview || '概要未登録' } }]
                     },
                     '全国上映開始日': {
                         date: { start: movie.release_date || null } // 全国上映開始日を日付形式で設定
@@ -145,10 +151,10 @@ function selectMovie(movieId, movieTitle, thumbnailUrl) {
                         number: movie.vote_average // ユーザースコアを数値として設定
                     },
                     'アイリス上映開始日': {
-                        date: { start: startDate || null } // アイリス上映開始日
+                        date: { start: startDate } // アイリス上映開始日
                     },
                     'アイリス上映終了日': {
-                        date: { start: endDate || null } // アイリス上映終了日
+                        date: { start: endDate } // アイリス上映終了日
                     },
                     '画像': {
                         files: mediaProperties // サムネイルとメイン画像を含む全ての画像を設定
