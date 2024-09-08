@@ -85,3 +85,72 @@ a:hover {
   font-size: 12px;
   margin-left: 10px;
 }
+
+/* 検索コンテナのスタイル */
+.search-container {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+#search-containers {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.search-input {
+  width: 100%;
+  padding: 10px;
+  box-sizing: border-box;
+}
+
+.clear-button {
+  padding: 8px 16px;
+  background-color: #ff4d4d; /* 背景色を赤に設定 */
+  color: white; /* 文字色を白に設定 */
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.clear-button:hover {
+  background-color: #e60000; /* ホバー時の色を少し暗く */
+}
+
+/* リロードボタンのスタイル */
+.top-bar {
+  display: flex;
+  justify-content: flex-start;
+  padding: 10px;
+  background-color: #f8f9fa;
+}
+
+#reload-button {
+  padding: 8px 16px;
+  background-color: #007bff;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+#reload-button:hover {
+  background-color: #0056b3;
+}
+
+/* 全てクリアボタンのスタイル */
+#clear-all-button {
+  padding: 8px 16px;
+  background-color: #ff4d4d; /* 背景色を赤に設定 */
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  margin-top: 10px;
+}
+
+#clear-all-button:hover {
+  background-color: #e60000;
+}
